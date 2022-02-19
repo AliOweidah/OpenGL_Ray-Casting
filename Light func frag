@@ -1,0 +1,59 @@
+#version 430 core
+
+layout(location = 0) out vec4 FragColor;
+layout(binding = 0) uniform sampler2D Front;
+layout(binding = 1) uniform sampler2D Back;
+layout(binding = 2) uniform sampler3D Volume;
+layout(binding = 3) uniform sampler1D TransferFunc;
+
+in InOutVars
+{
+    vec2 TexCoord;
+} inData;
+
+
+void main()
+{
+   float StepSize = 0.001f;
+   vec3 frontCoordinate = texture(Front, inData.TexCoord).xyz;
+   vec3 backCoordinate = texture(Back, inData.TexCoord).xyz;
+
+   vec3 rayDirection = normalize(backCoordinate-frontCoordinate);
+   float len = length(rayDirection);
+   vec3 deltaDir = normalize(rayDirection) * StepSize;
+   float deltaDirLen = length(deltaDir);
+   vec3 voxelCoord = frontCoordinate;
+   vec4 colorAcum = vec4(0.0); // The dest color
+   float alphaAcum = 0.0;                // The  dest alpha for blending
+   float intensity;
+   float lengthAcum = 0.0;
+   vec4 colorSample; // The src color 
+   float alphaSample; // The src alpha
+    
+    vec4 bgColor = vec4(1.0, 1.0, 1.0, 0.0); // backgroundColor
+
+    for(int i = 0; i < 1600; i++)
+    {
+        intensity =  texture(Volume, voxelCoord).x;
+        colorSample = texture(TransferFunc, intensity);
+        if (colorSample.a > 0.0) {
+    	    // accomodate for variable sampling rates (base interval defined by mod_compositing.frag)
+    	    colorSample.a = 1.0 - pow(1.0 - colorSample.a, StepSize*200.0f);
+    	    colorAcum.rgb += (1.0 - colorAcum.a) * colorSample.rgb * colorSample.a;
+    	    colorAcum.a += (1.0 - colorAcum.a) * colorSample.a;
+    	}
+    	voxelCoord += deltaDir;
+    	lengthAcum += deltaDirLen;
+    	if (lengthAcum >= len )
+    	{	
+    	    colorAcum.rgb = colorAcum.rgb*colorAcum.a + (1 - colorAcum.a)*bgColor.rgb;		
+    	    break;  // terminate if opacity > 1 or the ray is outside the volume	
+    	}	
+    	else if (colorAcum.a > 1.0)
+    	{
+    	    colorAcum.a = 1.0;
+    	    break;
+    	}
+    }
+    FragColor = colorAcum;
+}
