@@ -1,0 +1,39 @@
+#version 430 core
+layout(location = 0) out vec4 FragColor;
+layout(binding = 0) uniform sampler2D Front;
+layout(binding = 1) uniform sampler2D Back;
+layout(binding = 2) uniform sampler3D Volume;
+layout(binding = 3) uniform sampler1D TransferFunc;
+
+in InOutVars
+{
+    vec2 TexCoord;
+} inData;
+
+
+void main()
+{
+    vec3 frontCoordinate = texture(Front, inData.TexCoord).xyz;
+    vec3 backCoordinate = texture(Back, inData.TexCoord).xyz;
+    
+    vec3 rayDirection =  normalize(backCoordinate-frontCoordinate);
+    float rayLength = length(rayDirection);
+    float stepSize = 0.001f;
+    vec3 rayStep = normalize(rayDirection)*stepSize;
+
+    vec3 currentPosition = frontCoordinate;
+    vec4 color = vec4(0,0,0,0);
+
+    while(length(currentPosition - frontCoordinate)< rayLength)
+    {
+        float volumeValue = texture(Volume,currentPosition).x;
+
+        vec4 tfColor = texture(TransferFunc,volumeValue).rgba;
+
+        composite(color,tfColor);
+
+        currentPosition+=rayStep;
+    
+    }
+    FragColor = vec4(color, 1.0);
+}
